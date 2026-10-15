@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIM-NET | Sistem Informasi Inventaris & Monitoring Perangkat Jaringan</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- TOP NAVIGATION BAR -->
+  <header class="navbar">
+    <div class="nav-container">
+      <div class="brand-section">
+        <div class="brand-icon">🌐</div>
+        <div>
+          <div class="brand-title">SIM-NET INVENTARIS & MONITORING</div>
+          <div class="brand-subtitle">Enterprise Hardware Inventory, Rack Mapping & Live Latency Healthcheck</div>
+        </div>
+      </div>
+      
+      <div class="nav-actions">
+        <div id="liveClock" class="live-time-badge">Memuat Waktu...</div>
+        <button class="btn btn-sm btn-outline" style="color:white; border-color:rgba(255,255,255,0.3);" onclick="rescanAllDevices()">
+          🔄 Scan Jaringan Sekarang
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- KPI STATISTIK UTAMA -->
+    <section class="stats-grid">
+      <!-- Total Perangkat -->
+      <div class="stat-card blue">
+        <div class="stat-icon">🖥️</div>
+        <div>
+          <div class="stat-label">Total Perangkat Aset</div>
+          <div id="statTotal" class="stat-value">0</div>
+        </div>
+      </div>
+
+      <!-- Online Status -->
+      <div class="stat-card green">
+        <div class="stat-icon">🟢</div>
+        <div>
+          <div class="stat-label">Perangkat Online</div>
+          <div id="statOnline" class="stat-value">0</div>
+        </div>
+      </div>
+
+      <!-- High Latency -->
+      <div class="stat-card amber">
+        <div class="stat-icon">⚠️</div>
+        <div>
+          <div class="stat-label">Latency Tinggi (>100ms)</div>
+          <div id="statLatency" class="stat-value">0</div>
+        </div>
+      </div>
+
+      <!-- Offline / Down -->
+      <div class="stat-card red">
+        <div class="stat-icon">🔴</div>
+        <div>
+          <div class="stat-label">Offline / Terputus</div>
+          <div id="statOffline" class="stat-value">0</div>
+        </div>
+      </div>
+
+      <!-- SLA Uptime -->
+      <div class="stat-card purple">
+        <div class="stat-icon">📊</div>
+        <div>
+          <div class="stat-label">Rata-rata Uptime SLA</div>
+          <div id="statUptime" class="stat-value">99.4%</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LIVE DIAGNOSTIC TOOL CARD -->
+    <section class="card" style="background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);">
+      <div class="card-header" style="margin-bottom: 12px;">
+        <h2 class="card-title">🔍 Quick Ping Probe & Diagnostic Healthcheck</h2>
+        <span style="font-size: 12px; color: var(--text-muted);">Uji koneksi instan ke IP address perangkat tertentu</span>
+      </div>
+      <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <input type="text" id="probeIpInput" class="form-input" style="flex: 2; min-width: 200px;" placeholder="IP Address / Host (Contoh: 192.168.1.1, 127.0.0.1, 8.8.8.8)" value="127.0.0.1">
+        <input type="number" id="probePortInput" class="form-input" style="flex: 1; min-width: 100px;" placeholder="Port (80, 443, 22)" value="80">
+        <button class="btn btn-primary" onclick="runProbeTest()">🚀 Jalankan Ping Test</button>
+      </div>
+      <div id="probeResultBox" style="display: none; margin-top: 14px; padding: 12px 16px; border-radius: var(--radius-md); font-size: 13.5px;"></div>
+    </section>
+
+    <!-- TABEL UTAMA INVENTARIS PERANGKAT JARINGAN -->
+    <section class="card">
+      <div class="card-header">
+        <h2 class="card-title">📦 Master Inventaris & Status Realtime Perangkat</h2>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-primary" onclick="openAddModal()">+ Tambah Aset Perangkat</button>
+          <button class="btn btn-outline" onclick="exportDataCSV()">📥 Ekspor CSV</button>
+          <button class="btn btn-outline" onclick="window.print()">🖨️ Cetak / PDF</button>
+        </div>
+      </div>
+
+      <!-- Filter Bar -->
+      <div class="toolbar">
+        <div class="filter-group">
+          <input type="text" id="searchInput" class="form-input" placeholder="Cari Hostname, IP, Kode Aset..." onkeyup="filterDevices()">
+          
+          <select id="filterCategory" class="form-select" onchange="filterDevices()">
+            <option value="all">Semua Kategori</option>
+          </select>
+
+          <select id="filterStatus" class="form-select" onchange="filterDevices()">
+            <option value="all">Semua Status Koneksi</option>
+            <option value="online">Online</option>
+            <option value="latency_high">Latency Tinggi</option>
+            <option value="offline">Offline</option>
+          </select>
+        </div>
+        <div style="font-size: 12.5px; color: var(--text-muted);" id="deviceCountLabel">
+          Menampilkan 0 perangkat
+        </div>
+      </div>
+
+      <!-- Data Table -->
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>No</th>
+              <th>Kode Aset</th>
+              <th>Hostname & Merk</th>
+              <th>Kategori</th>
+              <th>IP & Port</th>
+              <th>MAC Address</th>
+              <th>Lokasi & Rack</th>
+              <th>Status Fisik</th>
+              <th>Status Ping</th>
+              <th>Latensi</th>
+              <th>Uptime</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="deviceTableBody">
+            <tr>
+              <td colspan="12" style="text-align: center; padding: 24px; color: var(--text-muted);">Memuat inventaris perangkat...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- RIWAYAT PEMELIHARAAN & LOG GANGGUAN -->
+    <section class="card">
+      <div class="card-header">
+        <h2 class="card-title">🛠️ Log Pemeliharaan & Troubleshooting (Maintenance Records)</h2>
+        <button class="btn btn-sm btn-outline" onclick="openMaintenanceModal()">+ Catat Perbaikan</button>
+      </div>
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Tanggal</th>
+              <th>Perangkat</th>
+              <th>Permasalahan / Gangguan</th>
+              <th>Tindakan Penanganan</th>
+              <th>Teknisi</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="maintenanceTableBody">
+            <tr>
+              <td colspan="6" style="text-align: center; padding: 20px; color: var(--text-muted);">Memuat riwayat pemeliharaan...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODAL TAMBAH PERANGKAT -->
+  <div id="modalAddDevice" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 style="font-size: 16px; font-weight: 700;">Tambah Perangkat Jaringan Baru</h3>
+        <button class="modal-close" onclick="closeAddModal()">&times;</button>
+      </div>
+      <form id="formAddDevice" onsubmit="submitNewDevice(event)">
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Kode Aset *</label>
+            <input type="text" id="newAssetCode" class="form-input" placeholder="NET-2026-007" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Hostname Perangkat *</label>
+            <input type="text" id="newHostname" class="form-input" placeholder="SW-ACCESS-LT2" required>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Kategori *</label>
+            <select id="newCategory" class="form-select" required></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Lokasi / Rack Server *</label>
+            <select id="newLocation" class="form-select" required></select>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">IP Address *</label>
+            <input type="text" id="newIpAddress" class="form-input" placeholder="192.168.1.20" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Port Monitoring</label>
+            <input type="number" id="newPort" class="form-input" value="80">
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Brand / Merk</label>
+            <input type="text" id="newBrand" class="form-input" placeholder="Cisco / MikroTik / Ubiquiti">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Model Perangkat</label>
+            <input type="text" id="newModel" class="form-input" placeholder="Catalyst 2960 / CCR1036">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">MAC Address</label>
+          <input type="text" id="newMac" class="form-input" placeholder="AA:BB:CC:DD:EE:FF">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Catatan Tambahan (Opsional)</label>
+          <input type="text" id="newNotes" class="form-input" placeholder="Keterangan fungsi atau port uplink...">
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+          <button type="button" class="btn btn-outline" onclick="closeAddModal()">Batal</button>
+          <button type="submit" class="btn btn-primary">Simpan ke Inventaris</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL CATAT PEMELIHARAAN -->
+  <div id="modalMaintenance" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 style="font-size: 16px; font-weight: 700;">Catat Pemeliharaan / Troubleshooting</h3>
+        <button class="modal-close" onclick="closeMaintenanceModal()">&times;</button>
+      </div>
+      <form onsubmit="submitMaintenance(event)">
+        <div class="form-group">
+          <label class="form-label">Pilih Perangkat Jaringan *</label>
+          <select id="maintDeviceSelect" class="form-select" required></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Gejala / Permasalahan yang Terjadi *</label>
+          <input type="text" id="maintIssue" class="form-input" placeholder="Contoh: Port uplink link flapping, panas berlebih..." required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tindakan Penanganan yang Dilakukan *</label>
+          <textarea id="maintAction" class="form-input" rows="3" placeholder="Contoh: Mengganti kabel patch cord cat6 dan reset konfigurasi port..." required></textarea>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Nama Teknisi</label>
+            <input type="text" id="maintTech" class="form-input" value="Budi Santoso">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Status Penanganan</label>
+            <select id="maintStatus" class="form-select">
+              <option value="Resolved">Resolved (Selesai)</option>
+              <option value="In Progress">In Progress (Sedang Dikerjakan)</option>
+            </select>
+          </div>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+          <button type="button" class="btn btn-outline" onclick="closeMaintenanceModal()">Batal</button>
+          <button type="submit" class="btn btn-primary">Simpan Catatan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

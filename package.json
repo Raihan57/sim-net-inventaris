@@ -1,0 +1,23 @@
+{
+  "name": "sim-net-inventaris-monitoring",
+  "version": "1.0.0",
+  "description": "Sistem Informasi Inventaris dan Monitoring Perangkat Jaringan Komputer Enterprise",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "network-inventory",
+    "network-monitoring",
+    "ping-latency",
+    "hardware-assets",
+    "rack-location"
+  ],
+  "author": "Teknik Komputer",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  }
+}
