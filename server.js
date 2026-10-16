@@ -363,9 +363,13 @@ app.post('/api/maintenance', (req, res) => {
     res.json({ success: true, message: 'Log perbaikan berhasil disimpan!', data: newLog });
 });
 
-app.listen(PORT, () => {
-    console.log(`=======================================================`);
-    console.log(`🌐 SIM-NET Inventaris & Monitoring Running on Port ${PORT}`);
-    console.log(`🚀 Ready for Local & Production Deployment`);
-    console.log(`=======================================================`);
-});
+// Export Express app untuk Vercel Functions; tetap bisa dijalankan lokal.
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`=======================================================`);
+        console.log(`🌐 SIM-NET Inventaris & Monitoring Running on Port ${PORT}`);
+        console.log(`🚀 Ready for Local & Production Deployment`);
+        console.log(`=======================================================`);
+    });
+}
+module.exports = app;
