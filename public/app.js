@@ -394,3 +394,135 @@ function exportDataCSV() {
     a.click();
     URL.revokeObjectURL(url);
 }
+
+
+// =============================================================================
+// UX IMPROVEMENTS: LOCAL PERSISTENCE FOR ADDED ASSETS
+// Asset baru dan penghapusan disimpan di browser agar tetap terlihat setelah
+// halaman di-refresh. Untuk berbagi data antar pengguna/perangkat dibutuhkan DB.
+(() => {
+  const ASSET_KEY = 'simnet_custom_assets_v1';
+  const DELETED_KEY = 'simnet_deleted_assets_v1';
+
+  function readStore(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch (_) {
+      return fallback;
+    }
+  }
+  function writeStore(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    } catch (_) {
+      alert('Penyimpanan browser penuh atau tidak tersedia. Coba hapus beberapa data browser.');
+      return false;
+    }
+  }
+  function getCustomAssets() { return readStore(ASSET_KEY, []); }
+  function getDeletedIds() { return readStore(DELETED_KEY, []); }
+
+  window.loadDevices = async function(renderLoading = true) {
+    const tbody = document.getElementById('deviceTableBody');
+    if (renderLoading && tbody) {
+      tbody.innerHTML = '<tr><td colspan="12" class="empty-state">Memuat inventaris perangkat...</td></tr>';
+    }
+    try {
+      const response = await fetch('/api/devices');
+      if (!response.ok) throw new Error('Gagal mengambil inventaris');
+      const data = await response.json();
+      if (!data.success) throw new Error(data.message || 'Data tidak tersedia');
+      const deleted = new Set(getDeletedIds().map(String));
+      const base = data.data.filter(d => !deleted.has(String(d.id)));
+      const custom = getCustomAssets().filter(d => !deleted.has(String(d.id)));
+      devicesList = [...custom, ...base];
+      renderDevicesTable(devicesList);
+      populateMaintDeviceDropdown();
+      window.loadStats();
+    } catch (error) {
+      console.error(error);
+      if (tbody) tbody.innerHTML = '<tr><td colspan="12" class="empty-state">Data gagal dimuat. Pastikan aplikasi berjalan melalui server SIM-NET.</td></tr>';
+    }
+  };
+
+  window.loadStats = async function() {
+    const total = devicesList.length;
+    const online = devicesList.filter(d => d.status === 'online').length;
+    const high = devicesList.filter(d => d.status === 'latency_high').length;
+    const offline = devicesList.filter(d => d.status === 'offline').length;
+    const values = { statTotal: total, statOnline: online, statLatency: high, statOffline: offline };
+    Object.entries(values).forEach(([id, value]) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = value;
+    });
+    const uptime = document.getElementById('statUptime');
+    if (uptime && !uptime.textContent) uptime.textContent = '—';
+  };
+
+  window.submitNewDevice = async function(e) {
+    e.preventDefault();
+    const payload = {
+      asset_code: document.getElementById('newAssetCode').value.trim(),
+      hostname: document.getElementById('newHostname').value.trim(),
+      category_id: Number(document.getElementById('newCategory').value) || 1,
+      location_id: Number(document.getElementById('newLocation').value) || 1,
+      ip_address: document.getElementById('newIpAddress').value.trim(),
+      port: Number(document.getElementById('newPort').value) || 80,
+      brand: document.getElementById('newBrand').value.trim() || 'Generic',
+      model: document.getElementById('newModel').value.trim() || 'Standard',
+      mac_address: document.getElementById('newMac').value.trim() || '00:00:00:00:00:00',
+      notes: document.getElementById('newNotes').value.trim()
+    };
+    if (!payload.asset_code || !payload.hostname || !payload.ip_address) {
+      alert('Kode aset, nama perangkat, dan IP address wajib diisi.');
+      return;
+    }
+    if (devicesList.some(d => String(d.asset_code).toLowerCase() === payload.asset_code.toLowerCase())) {
+      alert('Kode aset tersebut sudah digunakan. Gunakan kode aset yang berbeda.');
+      return;
+    }
+    const category = categoriesList.find(c => c.id === payload.category_id) || { name: 'Lainnya', code: 'OTH', color: '#64748b' };
+    const location = locationsList.find(l => l.id === payload.location_id) || { name: 'Belum ditentukan', building: '-', rack: '-' };
+    const asset = {
+      ...payload,
+      id: Date.now() + Math.floor(Math.random() * 1000),
+      category_name: category.name,
+      category_code: category.code,
+      category_color: category.color,
+      location_name: location.name,
+      building: location.building,
+      rack: location.rack,
+      operational_status: 'Active',
+      status: 'offline',
+      latency_ms: null,
+      last_check: new Date().toISOString(),
+      uptime: '—'
+    };
+    const custom = getCustomAssets();
+    custom.unshift(asset);
+    if (!writeStore(ASSET_KEY, custom)) return;
+    closeAddModal();
+    await loadDevices(false);
+    alert('Aset berhasil ditambahkan. Data tersimpan di browser ini.');
+  };
+
+  window.deleteDevice = async function(id) {
+    const device = devicesList.find(d => String(d.id) === String(id));
+    if (!device || !confirm('Hapus aset ' + device.asset_code + ' dari inventaris?')) return;
+    const custom = getCustomAssets().filter(d => String(d.id) !== String(id));
+    const deleted = getDeletedIds();
+    if (!deleted.map(String).includes(String(id))) deleted.push(id);
+    if (!writeStore(ASSET_KEY, custom) || !writeStore(DELETED_KEY, deleted)) return;
+    await loadDevices(false);
+  };
+
+  // Tombol tutup modal juga bisa memakai Escape.
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      document.getElementById('modalAddDevice')?.classList.remove('active');
+      document.getElementById('modalMaintenance')?.classList.remove('active');
+    }
+  });
+})();
