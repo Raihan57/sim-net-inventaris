@@ -4,15 +4,5 @@
     "api/[...path].js": {
       "includeFiles": "server.js"
     }
-  },
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/[...path]"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/public/$1"
-    }
-  ]
+  }
 }
