@@ -33,34 +33,55 @@ function initClock() {
 
 // 1. Load Metadata Kategori & Lokasi
 async function loadMetadata() {
+    // Nilai cadangan agar formulir tetap bisa dipakai bila endpoint metadata
+    // gagal dimuat di deployment.
+    const defaultCategories = [
+        { id: 1, name: 'Core Router', code: 'ROU-CORE', color: '#2563eb' },
+        { id: 2, name: 'Manageable Switch', code: 'SW-MNG', color: '#059669' },
+        { id: 3, name: 'Wireless Access Point', code: 'WAP', color: '#d97706' },
+        { id: 4, name: 'Server Fisik', code: 'SRV', color: '#7c3aed' },
+        { id: 5, name: 'Firewall UTM', code: 'FW', color: '#dc2626' }
+    ];
+    const defaultLocations = [
+        { id: 1, name: 'Ruang Server NOC', building: 'Gedung Rektorat Lt. 2', rack: 'Rack 01-A' },
+        { id: 2, name: 'Data Center Distribusi', building: 'Gedung Lab Komputer Lt. 1', rack: 'Rack 02-B' },
+        { id: 3, name: 'Hub Perpustakaan', building: 'Gedung Perpustakaan Lt. 3', rack: 'Rack 03-C' },
+        { id: 4, name: 'Distribution Hall', building: 'Gedung Kuliah Bersama Lt. 2', rack: 'Rack 04-D' }
+    ];
+
     try {
         const res = await fetch('/api/metadata');
+        if (!res.ok) throw new Error('Endpoint metadata mengembalikan HTTP ' + res.status);
         const data = await res.json();
-        if (data.success) {
-            categoriesList = data.categories;
-            locationsList = data.locations;
-            populateDropdowns();
-        }
+        if (!data.success) throw new Error(data.message || 'Metadata tidak tersedia');
+        categoriesList = Array.isArray(data.categories) ? data.categories : [];
+        locationsList = Array.isArray(data.locations) ? data.locations : [];
+        if (!categoriesList.length) categoriesList = defaultCategories;
+        if (!locationsList.length) locationsList = defaultLocations;
     } catch (e) {
-        console.error('Error load metadata:', e);
+        console.error('Metadata gagal dimuat, menggunakan data cadangan:', e);
+        categoriesList = defaultCategories;
+        locationsList = defaultLocations;
     }
+    populateDropdowns();
 }
 
 function populateDropdowns() {
     const filterCat = document.getElementById('filterCategory');
     const newCat = document.getElementById('newCategory');
     const newLoc = document.getElementById('newLocation');
+    if (!filterCat || !newCat || !newLoc) return;
 
     filterCat.innerHTML = '<option value="all">Semua Kategori</option>';
-    newCat.innerHTML = '';
+    newCat.innerHTML = '<option value="">Pilih kategori perangkat</option>';
     categoriesList.forEach(c => {
-        filterCat.innerHTML += `<option value="${c.id}">${c.name}</option>`;
-        newCat.innerHTML += `<option value="${c.id}">${c.name} (${c.code})</option>`;
+        filterCat.add(new Option(c.name, c.id));
+        newCat.add(new Option(`${c.name} (${c.code})`, c.id));
     });
 
-    newLoc.innerHTML = '';
+    newLoc.innerHTML = '<option value="">Pilih lokasi / rack</option>';
     locationsList.forEach(l => {
-        newLoc.innerHTML += `<option value="${l.id}">${l.name} - ${l.rack}</option>`;
+        newLoc.add(new Option(`${l.name} - ${l.rack}`, l.id));
     });
 }
 
